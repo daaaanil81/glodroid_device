@@ -19,7 +19,6 @@ add_part() {
 	# Align size
 	echo $1: size=$SIZE
 	echo $1: partition offset=$PTR
-
 	if [ -z "$3" ]; then
 	    SGCMD="--new $pn:$(( PTR / 512 )):$(( ($PTR + $SIZE - 1) / 512 ))"
 	else
@@ -27,9 +26,7 @@ add_part() {
 	fi
 
 	sgdisk --set-alignment=1 $SGCMD --change-name=$pn:"$2" ${SDIMG}
-
 	dd if=$1 of=$SDIMG bs=4k count=$(( SIZE/4096 )) seek=$(( $PTR / 4096 )) conv=notrunc && sync
-
 	PTR=$(( ($PTR + $SIZE + $ALIGN - 1) / $ALIGN * $ALIGN ))
 	pn=$(( $pn+1 ))
 }
@@ -120,6 +117,11 @@ case $i in
     ;;
 esac
 done
+
+if [ "$PLATFORM" = "rockchip" ]; then
+    PART_START=$(( 64 * 512 ))
+    PTR=$PART_START
+fi
 
 if [[ -n $1 ]]; then
     SDIMG=$1

@@ -89,6 +89,9 @@ endif
 ifeq ($(PRODUCT_BOARD_PLATFORM),broadcom)
 BOARD_KERNEL_BASE     := 0x00000000
 endif
+ifeq ($(PRODUCT_BOARD_PLATFORM),rockchip)
+BOARD_KERNEL_BASE     := 0x2000000
+endif
 BOARD_KERNEL_PAGESIZE := 4096
 BOARD_KERNEL_CMDLINE  := androidboot.hardware=$(TARGET_PRODUCT)
 BOARD_MKBOOTIMG_ARGS  += --kernel_offset 0x80000 --second_offset 0x8800 --ramdisk_offset 0x3300000
