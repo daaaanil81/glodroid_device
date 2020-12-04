@@ -22,6 +22,9 @@ UBOOT_OUT := $(PRODUCT_OUT)/obj/UBOOT_OBJ
 
 SYSFS_MMC0_PATH ?= soc/1c0f000.mmc
 SYSFS_MMC1_PATH ?= soc/1c11000.mmc
+RKTRUST_INI := RK3399TRUST.ini
+UBOOT_EMMC_DEV_INDEX := 1
+UBOOT_SD_DEV_INDEX := 0
 
 UBOOT_KCFLAGS = \
     -fgnu89-inline \
@@ -41,8 +44,8 @@ UMAKE := \
     O=$$(readlink -f $(UBOOT_OUT))
 
 UBOOT_FRAGMENTS	+= device/glodroid/platform/common/uboot.config
-UBOOT_FRAGMENT_EMMC := device/glodroid/platform/common/uboot-emmc.config
-UBOOT_FRAGMENT_SD := device/glodroid/platform/common/uboot-sd.config
+UBOOT_FRAGMENT_EMMC := $(UBOOT_OUT)/uboot-emmc.config
+UBOOT_FRAGMENT_SD := $(UBOOT_OUT)/uboot-sd.config
 
 #-------------------------------------------------------------------------------
 ifeq ($(PRODUCT_BOARD_PLATFORM),sunxi)
@@ -55,6 +58,23 @@ UBOOT_FRAGMENTS	+= device/glodroid/platform/common/broadcom/uboot.config
 UBOOT_BINARY := $(UBOOT_OUT)/u-boot.bin
 RPI_FIRMWARE_DIR := vendor/raspberry/firmware
 endif
+
+ifeq ($(PRODUCT_BOARD_PLATFORM),rockchip)
+UBOOT_FRAGMENTS	+= device/glodroid/platform/common/rockchip/uboot.config
+UBOOT_BINARY := $(UBOOT_OUT)/idbloader.img
+ROCKCHIP_FIRMWARE_DIR := vendor/rockchip/rkbin
+UBOOT_EMMC_DEV_INDEX := 0
+UBOOT_SD_DEV_INDEX := 1
+SYSFS_MMC0_PATH := fe330000.sdhci
+SYSFS_MMC1_PATH := fe320000.mmc
+endif
+
+$(UBOOT_FRAGMENT_EMMC):
+	echo "CONFIG_FASTBOOT_FLASH_MMC_DEV=$(UBOOT_EMMC_DEV_INDEX)" > $@
+
+$(UBOOT_FRAGMENT_SD):
+	echo "CONFIG_FASTBOOT_FLASH_MMC_DEV=$(UBOOT_SD_DEV_INDEX)" > $@
+
 
 $(UBOOT_BINARY): $(UBOOT_FRAGMENTS) $(UBOOT_FRAGMENT_SD) $(UBOOT_FRAGMENT_EMMC) $(sort $(shell find -L $(UBOOT_SRC))) $(ATF_BINARY)
 	@echo "Building U-Boot: "
@@ -101,6 +121,21 @@ $(PRODUCT_OUT)/bootloader-sd.img: $(UBOOT_BINARY)
 	cp -f $<.sd $@
 	dd if=/dev/null of=$@ bs=1 count=1 seek=$$(( 2048 * 1024 - 256 * 512 ))
 endif
+
+ifeq ($(PRODUCT_BOARD_PLATFORM),rockchip)
+$(PRODUCT_OUT)/bootloader-sd.img: $(UBOOT_BINARY)
+	#Script for build uboot: https://github.com/armbian/build/blob/master/config/sources/families/include/rockchip64_common.inc
+	$(ROCKCHIP_FIRMWARE_DIR)/tools/mkimage -n rk3399 -T rksd -d $(ROCKCHIP_FIRMWARE_DIR)/bin/rk33/rk3399_ddr_933MHz_v1.24.bin $(UBOOT_OUT)/idbloader_externel.img
+	cat $(ROCKCHIP_FIRMWARE_DIR)/bin/rk33/rk3399_miniloader_v1.26.bin >> $(UBOOT_OUT)/idbloader_externel.img
+	$(ROCKCHIP_FIRMWARE_DIR)/tools/loaderimage --pack --uboot $(UBOOT_OUT)/u-boot-dtb.bin $(UBOOT_OUT)/uboot.img 0x200000
+	- mkdir $(UBOOT_OUT)/bin
+	(cp -r $(ROCKCHIP_FIRMWARE_DIR)/bin/rk33 $(UBOOT_OUT)/bin && cp $(ROCKCHIP_FIRMWARE_DIR)/RKTRUST/$(RKTRUST_INI) $(UBOOT_OUT) && cp $(ROCKCHIP_FIRMWARE_DIR)/tools/trust_merger $(UBOOT_OUT)/tools/trust_merger && cd $(UBOOT_OUT) && ./tools/trust_merger $(RKTRUST_INI))
+	dd if=$(UBOOT_OUT)/idbloader_externel.img of=$@ seek=0
+	dd if=$(UBOOT_OUT)/uboot.img of=$@ seek=$$(( 16384 - 64 ))
+	dd if=$(UBOOT_OUT)/trust.img of=$@ seek=$$(( 24576 - 64 ))
+	dd if=/dev/null of=$@ bs=1 count=1 seek=$$(( 16384 * 1024 - 64 * 512 ))
+endif
+
 
 ifeq ($(PRODUCT_BOARD_PLATFORM),broadcom)
 BOOT_FILES := \

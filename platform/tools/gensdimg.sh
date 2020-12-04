@@ -121,6 +121,11 @@ case $i in
 esac
 done
 
+if [ "$PLATFORM" = "rockchip" ]; then
+    PART_START=$(( 64 * 512 ))
+    PTR=$PART_START
+fi
+
 if [[ -n $1 ]]; then
     SDIMG=$1
 else
